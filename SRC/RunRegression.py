@@ -32,7 +32,7 @@ def RunRegression( setIndex_1, setIndex_2,
 
         allRes = pd.concat([allRes,res])
         
-    allRes.to_csv("./TmpReg/GuideRegTest_"+str(setIndex_1)+"_"+str(setIndex_2)+".csv", index=False)
+    allRes.to_csv("./GuideRegTest_"+str(setIndex_1)+"_"+str(setIndex_2)+".csv", index=False)
     return
 
 
@@ -47,29 +47,29 @@ if __name__ == "__main__":
     
     
     adata = sc.read_h5ad('./DATA/sc_training.h5ad')
-    adata.obs
+    allKOs=list(adata.var_names)
     
     
     
     guideMatrix = pd.get_dummies(data=adata.obs.condition, drop_first=False)
     guideMatrix = guideMatrix.drop(['Unperturbed'], axis=1)
     guideMatrix = guideMatrix.join(adata.obs[["n_genes", "mt_frac"]])
-#     stateMat = pd.get_dummies(data=adata.obs.state, drop_first=False)
-#     stateMat.columns=["cycling", "effector", "other", "progenitor", "exhausted"]
-#     stateMat = stateMat.drop(['progenitor'], axis=1)
-#     guideMatrix = guideMatrix.join(stateMat)
-    
-    
-    expressionMatrix = pd.DataFrame(adata.X.A)
+    stateMat = pd.get_dummies(data=adata.obs.state, drop_first=False)
+    stateMat.columns=["cycling", "effector", "other", "progenitor", "exhausted"]
+    stateMat = stateMat.drop(['progenitor'], axis=1)
+    guideMatrix = guideMatrix.join(stateMat)
+
+
+    expressionMatrix = pd.DataFrame(np.array(adata.X.A))
     expressionMatrix.columns = adata.var_names
     expressionMatrix.index = adata.obs.index
-    
-    
+
+    expressionMatrix = expressionMatrix[allKOs]
+
     myFormula = "+".join(guideMatrix.columns)
     my_formula = "y~" + myFormula
-    my_formula
-    
-    
+
+
     par_test_guide_interval = 500
     processes = []
 
@@ -110,15 +110,23 @@ if __name__ == "__main__":
         else:
             setIndex_2 = len(expressionMatrix.columns)
 
-        res =pd.read_csv("./TmpReg/GuideRegTest_"+str(setIndex_1)+"_"+str(setIndex_2)+".csv")
+        res =pd.read_csv("./GuideRegTest_"+str(setIndex_1)+"_"+str(setIndex_2)+".csv")
         allRes = pd.concat([allRes,res])
         #os.remove("./TmpReg/GuideRegTest_"+str(setIndex_1)+"_"+str(setIndex_2)+".csv")
-        
-    allRes.columns = ['guides', 'coef', 'stderr', 'z', 'pval', '[0.025', '0.975', 'respGene'] 
-    allRes = allRes[~allRes.guides.isin(['Intercept', 'n_genes', 'mt_frac', 'NaN']) & 
-                    ~allRes.guides.isnull() &  
-                    ~allRes.guides.str.contains("leiden", case=False, na=False) ]
- 
+           
     
-    allRes.to_csv("AllResults_noCellStates.csv", index=False)
+    allRes.columns = ['guides', 'coef', 'stderr', 'z', 'pval', '[0.025', '0.975', 'respGene'] 
+    allRes = allRes[['guides', 'coef',  'pval','respGene']]
+
+    allRes.to_csv("Regres.csv")
+    allRes = pd.read_csv("Regres.csv", index_col=0)
+
+    allRes = allRes.loc[~allRes.guides.isin(['Intercept', 'n_genes', 'mt_frac', 'NaN', 
+                                         'cycling', 'effector', 'other', 'exhausted']) & 
+                ~allRes.guides.isnull() &  
+                ~allRes.guides.str.contains("leiden", case=False, na=False)]
+
+
+    
+    allRes.to_csv("AllResults_cellStateRegressedOut.csv", index=False)
  
